@@ -1,0 +1,9 @@
+version: "3"
+
+services:
+  cicd:
+    build: .
+    container_name: dagger
+    volumes:
+      - ./:/go/src
+    privileged: true
