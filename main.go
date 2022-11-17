@@ -2,68 +2,70 @@ package main
 
 import (
     "context"
+    "embed"
     "fmt"
-    "os"
+    "io/fs"
 
     "dagger.io/dagger"
 )
 
-func main() {
-    if err := build(context.Background()); err != nil {
-        fmt.Println(err)
+// create a copy of an embed directory
+func copyEmbedDir(e fs.FS, dir *dagger.Directory) (*dagger.Directory, error) {
+    err := fs.WalkDir(e, ".", func(path string, d fs.DirEntry, err error) error {
+        if err != nil {
+            return err
+        }
+        if d.IsDir() {
+            return nil
+        }
+
+        content, err := fs.ReadFile(e, path)
+        if err != nil {
+            return err
+        }
+
+        dir = dir.WithNewFile(path, dagger.DirectoryWithNewFileOpts{
+            Contents: string(content),
+        })
+
+        return nil
+    })
+    if err != nil {
+        return nil, err
     }
+    return dir, nil
 }
 
-func build(ctx context.Context) error {
-    fmt.Println("Building with Dagger")
+//go:embed example
+var e embed.FS
 
-    // define build matrix
-    oses := []string{"linux", "darwin"}
-    arches := []string{"amd64", "arm64"}
-    goVersions := []string{"1.18", "1.19"}
+func main() {
+    ctx := context.Background()
 
-    // initialize Dagger client
-    client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stdout))
+    // Init Dagger client
+    client, err := dagger.Connect(ctx)
     if err != nil {
-        return err
+        panic(err)
     }
     defer client.Close()
 
-    // get reference to the local project
-    src := client.Host().Workdir()
-
-    // create empty directory to put build outputs
-    outputs := client.Directory()
-
-    for _, version := range goVersions {
-        // get `golang` image for specified Go version
-        imageTag := fmt.Sprintf("golang:%s", version)
-        golang := client.Container().From(imageTag)
-        // mount cloned repository into `golang` image
-        golang = golang.WithMountedDirectory("/src", src).WithWorkdir("/src")
-
-        for _, goos := range oses {
-            for _, goarch := range arches {
-                // create a directory for each os, arch and version
-                path := fmt.Sprintf("build/%s/%s/%s/", version, goos, goarch)
-                // set GOARCH and GOOS in the build environment
-                build := golang.WithEnvVariable("GOOS", goos)
-                build = build.WithEnvVariable("GOARCH", goarch)
-
-                // build application
-                build = build.Exec(dagger.ContainerExecOpts{
-                    Args: []string{"go", "build", "-o", path},
-                })
-
-                // get reference to build output directory in container
-                outputs = outputs.WithDirectory(path, build.Directory(path))
-            }
-        }
-    }
-    // write build artifacts to host
-    _, err = outputs.Export(ctx, ".")
+    // Copy embed files to dir, a newly created directory.
+    dir := client.Directory()
+    dir, err = copyEmbedDir(e, dir)
     if err != nil {
-        return err
+        panic(err)
     }
-    return nil
+
+    // Mount above directory ID and
+    container := client.Container().From("alpine:3.16.2").WithMountedDirectory("/embed", dir)
+
+    // List files
+    out, err := container.Exec(dagger.ContainerExecOpts{
+        Args: []string{"ls", "-lR", "/embed/"},
+    }).Stdout().Contents(ctx)
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Printf("%s", out)
 }
