@@ -1,0 +1,8 @@
+version: 0.2
+phases:
+  build:
+    commands:
+      - cd chapter2
+      - docker-compose up -d
+      - sleep 10
+      - docker exec dagger sh -c "go run main.go"

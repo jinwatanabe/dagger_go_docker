@@ -1,8 +1,17 @@
 version: 0.2
+
+env:
+  variables:
+    GO_VERSION: 1.19.3
 phases:
+  install:
+    commands:
+      - apt-get update
+      - apt-get install wget
+      - wget https://storage.googleapis.com/golang/go${GO_VERSION}.linux-amd64.tar.gz
+      - tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
+      - export PATH="/usr/local/go/bin:$PATH" && export GOPATH="$HOME/go" && export PATH="$GOPATH/bin:$PATH"
   build:
     commands:
       - cd chapter2
-      - docker-compose up -d
-      - sleep 10
-      - docker exec dagger sh -c "go run main.go"
+      - go run main.go
