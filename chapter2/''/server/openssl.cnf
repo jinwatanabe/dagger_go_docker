@@ -1,0 +1,2 @@
+[ x509_exts ]
+subjectAltName = DNS:1adb2a9ab592,DNS:docker,DNS:localhost,IP:127.0.0.1,IP:192.168.128.2

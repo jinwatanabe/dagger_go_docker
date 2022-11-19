@@ -4,8 +4,10 @@ services:
   cicd:
     build: .
     container_name: dagger
+    environment:
+      - DOCKER_TLS_CERTDIR=''
+      - DOCKER_DRIVER=overlay2
+      - DOCKER_HOST=tcp://docker:2375
     volumes:
       - ./:/go/src
     privileged: true
-    ports:
-      - 127.0.0.11:53:53/udp
