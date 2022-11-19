@@ -58,4 +58,6 @@ func main() {
 	if _, err := golang.ExitCode(ctx); err != nil {
 		panic(err)
 	}
+
+	fmt.Println("Success!!")
 }
