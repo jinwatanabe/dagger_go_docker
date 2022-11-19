@@ -1,3 +1,8 @@
-build: docker-compose up -d
-  sleep 10
-  docker exec dagger sh -c "go run main.go"
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - docker-compose up -d
+      - sleep 10
+      - docker exec dagger sh -c "go run main.go"
