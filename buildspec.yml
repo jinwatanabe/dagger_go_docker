@@ -1,14 +1,5 @@
 version: 0.2
-env:
-  parameter-store:
-    ps_no_proxy: no_proxy # パラメータストアからno_proxyの値を読み出す
 phases:
-  proxy:
-    commands:
-      - unset no_proxy # この時点のno_proxyは、s3とssmがセットされているのでno_proxyをリセット
-      - export no_proxy="$ps_no_proxy" # パラメータストアから読み出したno_proxyの値で設定
-      - echo $http_proxy # CodeBuildの環境変数にパラメータストア参照で設定しているためパラメータストアのhttp_proxyの値がセットされている
-      - echo $https_proxy
   build:
     commands:
       - cd chapter2
