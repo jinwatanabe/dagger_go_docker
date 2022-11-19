@@ -4,10 +4,8 @@ services:
   cicd:
     build: .
     container_name: dagger
-    environment:
-      - http_proxy=http://127.0.0.11:53
-      - https_proxy=https://127.0.0.11:53
-      - no_proxy=*
     volumes:
       - ./:/go/src
     privileged: true
+    ports:
+      - 9001:80
