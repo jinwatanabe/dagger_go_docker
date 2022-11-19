@@ -1,71 +1,59 @@
 package main
 
 import (
-    "context"
-    "embed"
-    "fmt"
-    "io/fs"
+	"context"
+	"fmt"
+	"os"
 
-    "dagger.io/dagger"
+	"dagger.io/dagger"
 )
 
-// create a copy of an embed directory
-func copyEmbedDir(e fs.FS, dir *dagger.Directory) (*dagger.Directory, error) {
-    err := fs.WalkDir(e, ".", func(path string, d fs.DirEntry, err error) error {
-        if err != nil {
-            return err
-        }
-        if d.IsDir() {
-            return nil
-        }
-
-        content, err := fs.ReadFile(e, path)
-        if err != nil {
-            return err
-        }
-
-        dir = dir.WithNewFile(path, dagger.DirectoryWithNewFileOpts{
-            Contents: string(content),
-        })
-
-        return nil
-    })
-    if err != nil {
-        return nil, err
-    }
-    return dir, nil
-}
-
-//go:embed example
-var e embed.FS
-
 func main() {
-    ctx := context.Background()
+	ctx := context.Background()
 
-    // Init Dagger client
-    client, err := dagger.Connect(ctx)
-    if err != nil {
-        panic(err)
-    }
-    defer client.Close()
+	// クライアントの用意、ログを出力するように追加で設定
+	client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stdout))
+	if err != nil {
+		panic(err)
+	}
+	defer client.Close()
 
-    // Copy embed files to dir, a newly created directory.
-    dir := client.Directory()
-    dir, err = copyEmbedDir(e, dir)
-    if err != nil {
-        panic(err)
-    }
+	// リポジトリをクローン(mainブランチの内容)
+	src := client.
+		Git("https://github.com/jinwatanabe/go_lambda_cicd").
+		Branch("main").Tree()
 
-    // Mount above directory ID and
-    container := client.Container().From("alpine:3.16.2").WithMountedDirectory("/embed", dir)
+	if err != nil {
+		panic(err)
+	}
 
-    // List files
-    out, err := container.Exec(dagger.ContainerExecOpts{
-        Args: []string{"ls", "-lR", "/embed/"},
-    }).Stdout().Contents(ctx)
-    if err != nil {
-        panic(err)
-    }
+    // CI/CDの実行環境をGoイメージを使うように設定(Goをテスト/ビルドするため)
+    // 環境変数を設定する (今回は必要はないが環境変数を設定することもできる)
+	golang := client.Container().From("golang:latest").WithEnvVariable("MESSAGE", "CI/CDが成功しました")
 
-    fmt.Printf("%s", out)
+    // コンテナの/appにリポジトリの内容をコピー
+    // カレントディレクトリを/app/srcに変更(srcにGoのコードがあるため)
+	golang = golang.WithMountedDirectory("/app", src).WithWorkdir("/app/src")
+
+    // コンテナの上でコマンドを実行
+    // テストコマンド
+    // ビルドコマンド
+    // ビルド結果を表示(mainがあることを確認)
+	golang = golang.Exec(dagger.ContainerExecOpts{
+		Args: []string{"sh", "-c", "go test"},
+	}).
+		Exec(dagger.ContainerExecOpts{
+			Args: []string{"sh", "-c", "env CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -ldflags='-s -w' -o bin/main handler/main.go"},
+		}).
+		Exec(dagger.ContainerExecOpts{
+			Args: []string{"sh", "-c", "ls -la bin"},
+		})
+
+    // CI/CDに失敗したらここでエラーがでて停止する
+	if _, err := golang.ExitCode(ctx); err != nil {
+		panic(err)
+	}
+
+    // 環境変数で設定したメッセージを最後に表示
+	fmt.Println(os.Getenv("MESSAGE"))
 }
