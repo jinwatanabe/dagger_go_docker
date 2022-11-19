@@ -39,6 +39,7 @@ func main() {
     // テストコマンド
     // ビルドコマンド
     // ビルド結果を表示(mainがあることを確認)
+		// 環境変数を利用してを表示
 	golang = golang.Exec(dagger.ContainerExecOpts{
 		Args: []string{"sh", "-c", "go test"},
 	}).
@@ -47,13 +48,14 @@ func main() {
 		}).
 		Exec(dagger.ContainerExecOpts{
 			Args: []string{"sh", "-c", "ls -la bin"},
+		}).
+		Exec(dagger.ContainerExecOpts{
+			Args: []string{"sh", "-c", "echo $MESSAGE"},
 		})
+
 
     // CI/CDに失敗したらここでエラーがでて停止する
 	if _, err := golang.ExitCode(ctx); err != nil {
 		panic(err)
 	}
-
-    // 環境変数で設定したメッセージを最後に表示
-	fmt.Println(os.Getenv("MESSAGE"))
 }
